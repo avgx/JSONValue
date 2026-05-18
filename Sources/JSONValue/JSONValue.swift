@@ -1,16 +1,12 @@
 import Foundation
 
 /// A transport type for arbitrary JSON values.
-///
-/// The type is intentionally independent from OneCloudData models so it can be
-/// moved to a small standalone package later.
 @dynamicMemberLookup
 public enum JSONValue: Codable, Equatable, Sendable {
     case null
     case bool(Bool)
     case string(String)
-    case integer(Int)
-    case double(Double)
+    case number(JSONNumber)
     case array([JSONValue])
     case object([String: JSONValue])
 
@@ -22,9 +18,11 @@ public enum JSONValue: Codable, Equatable, Sendable {
         } else if let value = try? container.decode(Bool.self) {
             self = .bool(value)
         } else if let value = try? container.decode(Int.self) {
-            self = .integer(value)
+            self = .number(.int(Int64(value)))
+        } else if let value = try? container.decode(Int64.self) {
+            self = .number(.int(value))
         } else if let value = try? container.decode(Double.self) {
-            self = .double(value)
+            self = .number(.double(value))
         } else if let value = try? container.decode(String.self) {
             self = .string(value)
         } else if let value = try? container.decode([String: JSONValue].self) {
@@ -46,15 +44,27 @@ public enum JSONValue: Codable, Equatable, Sendable {
             try container.encode(value)
         case .string(let value):
             try container.encode(value)
-        case .integer(let value):
-            try container.encode(value)
-        case .double(let value):
+        case .number(let value):
             try container.encode(value)
         case .array(let value):
             try container.encode(value)
         case .object(let value):
             try container.encode(value)
         }
+    }
+}
+
+// MARK: - Compatibility with `.integer` / `.double` top-level cases
+
+public extension JSONValue {
+    /// Builds a JSON integer value. Prefer literals (`42`) or `.number(.int(...))` in new code.
+    static func integer(_ value: Int) -> JSONValue {
+        .number(.int(Int64(value)))
+    }
+
+    /// Builds a JSON floating-point value. Prefer literals (`3.14`) or `.number(.double(...))` in new code.
+    static func double(_ value: Double) -> JSONValue {
+        .number(.double(value))
     }
 }
 
@@ -90,25 +100,23 @@ public extension JSONValue {
     }
 
     var intValue: Int? {
-        switch self {
-        case .integer(let value):
-            return value
-        case .double(let value):
-            return Int(value)
-        default:
-            return nil
-        }
+        guard case .number(let value) = self else { return nil }
+        return value.intValue
+    }
+
+    var int64Value: Int64? {
+        guard case .number(let value) = self else { return nil }
+        return value.int64Value
     }
 
     var doubleValue: Double? {
-        switch self {
-        case .double(let value):
-            return value
-        case .integer(let value):
-            return Double(value)
-        default:
-            return nil
-        }
+        guard case .number(let value) = self else { return nil }
+        return value.doubleValue
+    }
+
+    var numberValue: JSONNumber? {
+        if case .number(let value) = self { return value }
+        return nil
     }
 
     var arrayValue: [JSONValue]? {
@@ -142,13 +150,13 @@ extension JSONValue: ExpressibleByUnicodeScalarLiteral {
 
 extension JSONValue: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: Int) {
-        self = .integer(value)
+        self = .number(.int(Int64(value)))
     }
 }
 
 extension JSONValue: ExpressibleByFloatLiteral {
     public init(floatLiteral value: Double) {
-        self = .double(value)
+        self = .number(.double(value))
     }
 }
 
