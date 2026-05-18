@@ -110,3 +110,51 @@ import Testing
     #expect(value["count"] == .number(.int(20_678_750)))
     #expect(value["count"]?.int64Value == 20_678_750)
 }
+
+@Test func decodePrimitiveTypes() throws {
+    #expect(try JSONValue.bool(true).decode(Bool.self) == true)
+    #expect(try JSONValue.string("faceAppeared").decode(String.self) == "faceAppeared")
+    #expect(try JSONValue.number(.int(1274)).decode(Int.self) == 1274)
+    #expect(try JSONValue.number(.double(0.25)).decode(Double.self) == 0.25)
+    #expect(try JSONValue.null.decode(String?.self) == nil)
+}
+
+@Test func decodeDecodableStruct() throws {
+    struct Row: Decodable, Equatable {
+        let cloudDomain: Int
+        let detectorType: String
+
+        enum CodingKeys: String, CodingKey {
+            case cloudDomain = "cloud.domain"
+            case detectorType = "detector.type"
+        }
+    }
+
+    let value: JSONValue = [
+        "cloud.domain": 1274,
+        "detector.type": "faceAppeared",
+    ]
+
+    #expect(
+        try value.decode(Row.self)
+            == Row(cloudDomain: 1274, detectorType: "faceAppeared")
+    )
+}
+
+@Test func decodeArray() throws {
+    let numbers: JSONValue = [.number(.int(1)), .number(.int(2)), .number(.int(3))]
+    let strings: JSONValue = [.string("a"), .string("b")]
+    let mixed: JSONValue = [.number(.int(1)), .string("a")]
+
+    #expect(try numbers.decode([Int].self) == [1, 2, 3])
+    #expect(try strings.decode([String].self) == ["a", "b"])
+    #expect((try mixed.decode([JSONValue].self)) == [.number(.int(1)), .string("a")])
+}
+
+@Test func decodeThrowsForTypeMismatch() throws {
+    let value: JSONValue = .string("not a number")
+
+    #expect(throws: (any Error).self) {
+        try value.decode(Int.self)
+    }
+}
