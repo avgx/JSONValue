@@ -46,6 +46,47 @@ Supported conveniences:
 - `@dynamicMemberLookup` and subscripts for objects and arrays
 - typed accessors: `stringValue`, `intValue`, `int64Value`, `doubleValue`, `numberValue`, `boolValue`, `arrayValue`, `objectValue`
 - literals: `"text"`, `42`, `3.14`, `true`, `nil`, `["a", "b"]`, `["key": "value"]`
+- bridging to and from `Codable` types (see below)
+
+## Bridging to and from `Codable`
+
+When part of the payload is dynamic (`JSONValue`) and part is a fixed model, convert across the boundary with `init(_:)` and `decode(_:)`:
+
+```swift
+struct Row: Codable, Equatable {
+    let cloudDomain: Int
+    let detectorType: String
+
+    enum CodingKeys: String, CodingKey {
+        case cloudDomain = "cloud.domain"
+        case detectorType = "detector.type"
+    }
+}
+
+// Encodable → JSONValue
+let value = try JSONValue(Row(cloudDomain: 1274, detectorType: "faceAppeared"))
+// same shape as a literal object:
+// ["cloud.domain": 1274, "detector.type": "faceAppeared"]
+
+// JSONValue → Decodable
+let row = try value.decode(Row.self)
+```
+
+Primitives and collections work the same way:
+
+```swift
+try JSONValue(true)           // .bool(true)
+try JSONValue("text")         // .string("text")
+try JSONValue(42)             // .number(.int(42))
+try JSONValue([1, 2, 3])      // .array([...])
+try JSONValue(Optional<String>.none)  // .null
+
+try JSONValue.bool(true).decode(Bool.self)  // true
+```
+
+Each call creates a fresh `JSONEncoder` and `JSONDecoder`. The encoder sets `outputFormatting` to `.withoutEscapingSlashes` so URL-like strings round-trip without `\/`. Other strategies (dates, key encoding) use Foundation defaults. Custom `CodingKeys` apply the same as in a normal `Codable` pipeline. Numbers follow the same int-vs-double rules as direct `JSONValue` decoding.
+
+This is a convenience bridge, not a zero-cost path: each call encodes to `Data` and decodes again. For hot paths, prefer staying in `JSONValue` or decoding straight into your model from wire data.
 
 ## Numbers: `JSONNumber` and `.number`
 
@@ -218,6 +259,13 @@ let body: JSONValue = [
     "limit": 5,
     "filter": ["period": ["type": "forever"]],
 ]
+```
+
+```swift
+// Round-trip through a Codable model
+let model = FilterRequest(table: "events", limit: 5)
+let json = try JSONValue(model)
+let again = try json.decode(FilterRequest.self)
 ```
 
 ## Inspired by

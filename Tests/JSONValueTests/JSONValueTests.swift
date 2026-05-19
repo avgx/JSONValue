@@ -158,3 +158,74 @@ import Testing
         try value.decode(Int.self)
     }
 }
+
+@Test func initFromEncodablePrimitiveTypes() throws {
+    let boolValue = try JSONValue(true)
+    let stringValue = try JSONValue("faceAppeared")
+    let intValue = try JSONValue(1274)
+    let doubleValue = try JSONValue(0.25)
+    let nullValue = try JSONValue(Optional<String>.none)
+
+    #expect(boolValue == .bool(true))
+    #expect(stringValue == .string("faceAppeared"))
+    #expect(intValue == .number(.int(1274)))
+    #expect(doubleValue == .number(.double(0.25)))
+    #expect(nullValue == .null)
+}
+
+@Test func initFromEncodableStruct() throws {
+    struct Row: Encodable, Equatable {
+        let cloudDomain: Int
+        let detectorType: String
+
+        enum CodingKeys: String, CodingKey {
+            case cloudDomain = "cloud.domain"
+            case detectorType = "detector.type"
+        }
+    }
+
+    let expected: JSONValue = [
+        "cloud.domain": 1274,
+        "detector.type": "faceAppeared",
+    ]
+
+    #expect(
+        try JSONValue(Row(cloudDomain: 1274, detectorType: "faceAppeared"))
+            == expected
+    )
+}
+
+@Test func initFromEncodableArray() throws {
+    #expect(try JSONValue([1, 2, 3]) == .array([.number(.int(1)), .number(.int(2)), .number(.int(3))]))
+    #expect(try JSONValue(["a", "b"]) == .array([.string("a"), .string("b")]))
+}
+
+@Test func initFromEncodableRoundTripsWithDecode() throws {
+    struct Row: Codable, Equatable {
+        let cloudDomain: Int
+        let detectorType: String
+
+        enum CodingKeys: String, CodingKey {
+            case cloudDomain = "cloud.domain"
+            case detectorType = "detector.type"
+        }
+    }
+
+    let model = Row(cloudDomain: 1274, detectorType: "faceAppeared")
+    let value = try JSONValue(model)
+
+    #expect(try value.decode(Row.self) == model)
+}
+
+@Test func urlRoundTripsThroughBridgingWithoutEscapedSlashes() throws {
+    let url = URL(string: "https://example.com/api/v1/items")!
+    let value = try JSONValue(url)
+
+    #expect(value == .string("https://example.com/api/v1/items"))
+    #expect(try value.decode(URL.self) == url)
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .withoutEscapingSlashes
+    let wireJSON = String(decoding: try encoder.encode(value), as: UTF8.self)
+    #expect(!wireJSON.contains("\\/"))
+}

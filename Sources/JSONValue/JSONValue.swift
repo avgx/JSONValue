@@ -192,7 +192,18 @@ public extension DecodingError {
 
 public extension JSONValue {
     func decode<T: Decodable>(_ type: T.Type) throws -> T {
-        let data = try JSONEncoder().encode(self)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .withoutEscapingSlashes
+        let data = try encoder.encode(self)
         return try JSONDecoder().decode(T.self, from: data)
+    }
+}
+
+public extension JSONValue {
+    init<T: Encodable>(_ value: T) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .withoutEscapingSlashes
+        let data = try encoder.encode(value)
+        self = try JSONDecoder().decode(JSONValue.self, from: data)
     }
 }
